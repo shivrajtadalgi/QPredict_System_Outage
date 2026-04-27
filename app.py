@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import joblib
+import time
 
 # ================================
 # PAGE CONFIG
@@ -35,7 +36,7 @@ st.title("🔍 System Outage Severity Prediction")
 tab1, tab2 = st.tabs(["📂 Batch Prediction", "⚡ Single Prediction"])
 
 # =========================================================
-# 📂 BATCH PREDICTION
+# 📂 BATCH PREDICTION (WITH DELAY)
 # =========================================================
 with tab1:
 
@@ -49,35 +50,48 @@ with tab1:
         st.dataframe(df.head())
 
         try:
-            # Drop unwanted columns
-            drop_cols = ["Outage_ID", "End_Time"]
-            df_model = df.drop(columns=[col for col in drop_cols if col in df.columns])
+            st.info("📂 File uploaded successfully. Starting AI processing...")
 
-            # Same encoding as training
-            df_model = pd.get_dummies(df_model)
+            # 🔥 PROGRESS BAR (6 seconds total)
+            progress_bar = st.progress(0)
 
-            # Align with training features
-            df_model = df_model.reindex(columns=feature_columns, fill_value=0)
+            for i in range(100):
+                time.sleep(0.06)   # 100 * 0.06 = ~6 seconds
+                progress_bar.progress(i + 1)
 
-            # Scale
-            df_scaled = scaler.transform(df_model)
+            # 🔥 SPINNER
+            with st.spinner("🤖 AI Model is analyzing outage patterns..."):
 
-            # Predict
-            preds = model.predict(df_scaled)
-            pred_labels = label_encoder.inverse_transform(preds)
+                # Drop unwanted columns
+                drop_cols = ["Outage_ID", "End_Time"]
+                df_model = df.drop(columns=[col for col in drop_cols if col in df.columns])
 
-            # Confidence
-            proba = model.predict_proba(df_scaled)
-            confidence = np.max(proba, axis=1)
+                # Same encoding as training
+                df_model = pd.get_dummies(df_model)
 
-            # Add output
-            df["Predicted_Severity"] = pred_labels
-            df["Confidence"] = confidence
+                # Align with training features
+                df_model = df_model.reindex(columns=feature_columns, fill_value=0)
 
-            st.subheader("✅ Prediction Results")
+                # Scale
+                df_scaled = scaler.transform(df_model)
+
+                # Predict
+                preds = model.predict(df_scaled)
+                pred_labels = label_encoder.inverse_transform(preds)
+
+                # Confidence
+                proba = model.predict_proba(df_scaled)
+                confidence = np.max(proba, axis=1)
+
+                # Add output
+                df["Predicted_Severity"] = pred_labels
+                df["Confidence"] = confidence
+
+            # ✅ SUCCESS MESSAGE
+            st.success(f"✅ Processing Completed! {len(df)} rows analyzed.")
+
+            st.subheader("📊 Prediction Results")
             st.dataframe(df.head())
-
-            st.success(f"Processed {len(df)} rows successfully")
 
             # Download
             csv = df.to_csv(index=False).encode("utf-8")
@@ -93,7 +107,7 @@ with tab1:
             st.error(f"❌ Error: {e}")
 
 # =========================================================
-# ⚡ SINGLE PREDICTION (BEAUTIFUL UI)
+# ⚡ SINGLE PREDICTION (UNCHANGED)
 # =========================================================
 with tab2:
 
@@ -131,7 +145,6 @@ with tab2:
             "month": [month]
         })
 
-        # Apply same transformation
         input_df = pd.get_dummies(input_df)
         input_df = input_df.reindex(columns=feature_columns, fill_value=0)
 
@@ -143,7 +156,6 @@ with tab2:
         prob = model.predict_proba(input_scaled)
         confidence = np.max(prob)
 
-        # 🎨 NICE OUTPUT
         st.markdown("### 🔍 Prediction Result")
 
         if pred_label == "high":
