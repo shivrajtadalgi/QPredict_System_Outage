@@ -14,24 +14,66 @@ st.set_page_config(
 )
 
 # ============================================================
-# CUSTOM CSS
+# RESPONSIVE CSS
 # ============================================================
 
 st.markdown("""
 <style>
 
+/* Main Background */
 .main {
     background-color: #f5f7fa;
 }
 
+/* Main Container */
+.block-container {
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+    padding-left: 2rem;
+    padding-right: 2rem;
+    max-width: 1550px;
+}
+
+/* Global Font */
+html, body, [class*="css"] {
+    font-size: 15px;
+}
+
+/* Buttons */
 .stButton>button {
     width: 100%;
-    height: 3.2em;
+    height: 3em;
     border-radius: 10px;
     background-color: #003366;
     color: white;
-    font-size: 17px;
+    font-size: 16px;
     font-weight: bold;
+}
+
+/* Metrics */
+[data-testid="metric-container"] {
+    background-color: white;
+    border: 1px solid #e6e6e6;
+    padding: 12px;
+    border-radius: 12px;
+}
+
+/* Dataframe */
+[data-testid="stDataFrame"] {
+    font-size: 13px;
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+
+    .block-container {
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+
+    html, body, [class*="css"] {
+        font-size: 12px;
+    }
 }
 
 </style>
@@ -51,13 +93,13 @@ feature_columns = joblib.load("feature_columns.pkl")
 # HEADER
 # ============================================================
 
-col1, col2, col3 = st.columns([1,5,1])
+col1, col2, col3 = st.columns([1.5,5,1.5])
 
 with col1:
 
     st.image(
         "logo_PLUSE.QPredict.png",
-        width=120
+        width=160
     )
 
 with col2:
@@ -74,7 +116,7 @@ with col3:
 
     st.image(
         "logo_digitide.jpg",
-        width=120
+        width=160
     )
 
 st.markdown("---")
@@ -212,213 +254,148 @@ with col3:
 
 if st.button("🚀 Predict Incident Severity"):
 
-    try:
+    # ========================================================
+    # NORMALIZATION
+    # ========================================================
 
-        # ====================================================
-        # INPUT DATAFRAME
-        # ====================================================
+    cpu_score = cpu
 
-        input_data = pd.DataFrame({
+    memory_score = memory
 
-            "Duration (minutes)": [duration],
+    latency_score = min((latency / 600) * 100, 100)
 
-            "Resolution_Time (minutes)": [resolution],
+    api_score = api_error
 
-            "CPU_Usage (%)": [cpu],
+    alert_score = min((alerts / 100) * 100, 100)
 
-            "Memory_Usage (%)": [memory],
+    duration_score = min((duration / 600) * 100, 100)
 
-            "Network_Latency_ms": [latency],
+    resolution_score = min((resolution / 600) * 100, 100)
 
-            "Users_Affected": [users],
+    users_score = min((users / 20000) * 100, 100)
 
-            "Alert_Count_Last_1Hr": [alerts],
+    # ========================================================
+    # BASE SCORE
+    # ========================================================
 
-            "API_Error_Rate (%)": [api_error],
+    severity_score = (
 
-            "Cause": [cause],
+        (cpu_score * 0.15) +
 
-            "Region": [region],
+        (memory_score * 0.10) +
 
-            "Environment": [environment],
+        (latency_score * 0.15) +
 
-            "Deployment_Type": [deployment]
+        (api_score * 0.15) +
 
-        })
+        (alert_score * 0.10) +
 
-        # ====================================================
-        # ENCODING
-        # ====================================================
+        (duration_score * 0.10) +
 
-        input_data = pd.get_dummies(input_data)
+        (resolution_score * 0.10) +
 
-        for col in feature_columns:
+        (users_score * 0.15)
 
-            if col not in input_data.columns:
-                input_data[col] = 0
+    )
 
-        input_data = input_data[feature_columns]
+    # ========================================================
+    # ENTERPRISE BOOSTS
+    # ========================================================
 
-        # ====================================================
-        # SCALING
-        # ====================================================
+    if cpu > 85:
+        severity_score += 8
 
-        input_scaled = scaler.transform(input_data)
+    if memory > 90:
+        severity_score += 8
 
-        # ====================================================
-        # NORMALIZATION
-        # ====================================================
+    if latency > 400:
+        severity_score += 10
 
-        cpu_score = cpu
+    if users > 10000:
+        severity_score += 12
 
-        memory_score = memory
+    if alerts > 40:
+        severity_score += 10
 
-        latency_score = min((latency / 600) * 100, 100)
+    if api_error > 25:
+        severity_score += 12
 
-        api_score = api_error
+    if duration > 300:
+        severity_score += 10
 
-        alert_score = min((alerts / 100) * 100, 100)
+    if resolution > 350:
+        severity_score += 8
 
-        duration_score = min((duration / 600) * 100, 100)
+    if environment == "Production":
+        severity_score += 5
 
-        resolution_score = min((resolution / 600) * 100, 100)
+    critical_causes = [
+        "Hardware Failure",
+        "Security Attack",
+        "Power Outage",
+        "Database Lock"
+    ]
 
-        users_score = min((users / 20000) * 100, 100)
+    if cause in critical_causes:
+        severity_score += 10
 
-        # ====================================================
-        # BASE SCORE
-        # ====================================================
+    if deployment == "Major Release":
+        severity_score += 6
 
-        severity_score = (
+    # ========================================================
+    # FINAL SCORE
+    # ========================================================
 
-            (cpu_score * 0.15) +
+    severity_score = min(severity_score, 100)
 
-            (memory_score * 0.10) +
+    severity_score = round(severity_score, 2)
 
-            (latency_score * 0.15) +
+    # ========================================================
+    # FINAL LABEL
+    # ========================================================
 
-            (api_score * 0.15) +
+    if severity_score <= 25:
 
-            (alert_score * 0.10) +
+        pred_label = "normal"
 
-            (duration_score * 0.10) +
+    elif severity_score <= 50:
 
-            (resolution_score * 0.10) +
+        pred_label = "low"
 
-            (users_score * 0.15)
+    elif severity_score <= 75:
 
-        )
+        pred_label = "medium"
 
-        # ====================================================
-        # ENTERPRISE SENSITIVITY BOOSTS
-        # ====================================================
+    else:
 
-        if cpu > 85:
-            severity_score += 8
+        pred_label = "high"
 
-        if memory > 90:
-            severity_score += 8
+    # ========================================================
+    # OUTPUT
+    # ========================================================
 
-        if latency > 400:
-            severity_score += 10
+    st.markdown("## 🧠 AI Prediction Result")
 
-        if users > 10000:
-            severity_score += 12
+    if pred_label == "high":
 
-        if alerts > 40:
-            severity_score += 10
+        st.error("🚨 HIGH Severity Incident")
 
-        if api_error > 25:
-            severity_score += 12
+    elif pred_label == "medium":
 
-        if duration > 300:
-            severity_score += 10
+        st.warning("⚠️ MEDIUM Severity Incident")
 
-        if resolution > 350:
-            severity_score += 8
+    elif pred_label == "low":
 
-        if environment == "Production":
-            severity_score += 5
+        st.info("🔹 LOW Severity Incident")
 
-        critical_causes = [
-            "Hardware Failure",
-            "Security Attack",
-            "Power Outage",
-            "Database Lock"
-        ]
+    else:
 
-        if cause in critical_causes:
-            severity_score += 10
+        st.success("✅ NORMAL Incident")
 
-        if deployment == "Major Release":
-            severity_score += 6
-
-        # ====================================================
-        # LIMIT SCORE
-        # ====================================================
-
-        severity_score = min(severity_score, 100)
-
-        severity_score = round(severity_score, 2)
-
-        # ====================================================
-        # FINAL CLASSIFICATION
-        # ====================================================
-
-        if severity_score <= 25:
-
-            pred_label = "normal"
-
-        elif severity_score <= 50:
-
-            pred_label = "low"
-
-        elif severity_score <= 75:
-
-            pred_label = "medium"
-
-        else:
-
-            pred_label = "high"
-
-        # ====================================================
-        # OUTPUT
-        # ====================================================
-
-        st.markdown("## 🧠 AI Prediction Result")
-
-        if pred_label == "high":
-
-            st.error(
-                f"🚨 HIGH Severity Incident"
-            )
-
-        elif pred_label == "medium":
-
-            st.warning(
-                f"⚠️ MEDIUM Severity Incident"
-            )
-
-        elif pred_label == "low":
-
-            st.info(
-                f"🔹 LOW Severity Incident"
-            )
-
-        else:
-
-            st.success(
-                f"✅ NORMAL Incident"
-            )
-
-        st.metric(
-            "Severity Score",
-            f"{severity_score:.2f}"
-        )
-
-    except Exception as e:
-
-        st.error(f"Prediction Error: {e}")
+    st.metric(
+        "Severity Score",
+        f"{severity_score}"
+    )
 
 # ============================================================
 # DIVIDER
@@ -438,7 +415,7 @@ uploaded_file = st.file_uploader(
 )
 
 # ============================================================
-# BATCH PROCESSING
+# PROCESS FILE
 # ============================================================
 
 if uploaded_file is not None:
@@ -446,7 +423,7 @@ if uploaded_file is not None:
     try:
 
         # ====================================================
-        # READ FILE
+        # READ CSV
         # ====================================================
 
         df = pd.read_csv(uploaded_file)
@@ -460,7 +437,42 @@ if uploaded_file is not None:
         )
 
         # ====================================================
-        # AI ANALYSIS PROGRESS
+        # REQUIRED COLUMN CHECK
+        # ====================================================
+
+        required_cols = [
+
+            "CPU_Usage (%)",
+            "Memory_Usage (%)",
+            "Network_Latency_ms",
+            "API_Error_Rate (%)",
+            "Users_Affected",
+            "Alert_Count_Last_1Hr",
+            "Duration (minutes)",
+            "Resolution_Time (minutes)",
+            "Environment",
+            "Deployment_Type",
+            "Cause"
+
+        ]
+
+        missing_cols = [
+
+            col for col in required_cols
+            if col not in df.columns
+
+        ]
+
+        if len(missing_cols) > 0:
+
+            st.error(
+                f"Uploaded dataset missing columns: {missing_cols}"
+            )
+
+            st.stop()
+
+        # ====================================================
+        # PROGRESS BAR
         # ====================================================
 
         st.info(
@@ -607,7 +619,7 @@ if uploaded_file is not None:
         )
 
         # ====================================================
-        # LIMIT SCORE
+        # FINAL SCORE
         # ====================================================
 
         severity_scores = severity_scores.clip(0, 100)
@@ -615,7 +627,7 @@ if uploaded_file is not None:
         severity_scores = severity_scores.round(2)
 
         # ====================================================
-        # FINAL CLASSIFICATION
+        # FINAL LABELS
         # ====================================================
 
         predicted_severity = []
@@ -715,17 +727,15 @@ if uploaded_file is not None:
         csv = df.to_csv(index=False).encode("utf-8")
 
         st.download_button(
-            "📥 Download Prediction Results",
-            csv,
-            "QPredict_Incident_Analysis.csv",
-            "text/csv"
+            label="📥 Download Prediction Results",
+            data=csv,
+            file_name="QPredict_Incident_Analysis.csv",
+            mime="text/csv"
         )
 
     except Exception as e:
 
-        st.error(
-            f"Prediction Error: {e}"
-        )
+        st.error(f"Prediction Error: {e}")
 
 # ============================================================
 # FOOTER
