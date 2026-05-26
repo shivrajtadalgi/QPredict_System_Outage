@@ -106,7 +106,7 @@ with col2:
 
     st.markdown(
         """
-        # QPredict Enterprise Incident Intelligence Platform
+        # QPredict IT Incident Intelligence Platform
 
         ### AI-Powered IT Operations Incident Severity Analytics
         """
